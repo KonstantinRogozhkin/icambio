@@ -10,7 +10,7 @@ export const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const menuItems = [
-    { path: '/rates', label: 'Текущие курсы' },
+    { path: '/rates', label: 'Курсы' },
     { path: '/reviews', label: 'Отзывы' },
     { path: '/delivery', label: 'Доставка' },
     { path: '/working-hours', label: 'График работы' },
