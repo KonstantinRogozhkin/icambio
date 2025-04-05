@@ -35,7 +35,7 @@ export const ExchangeRow = ({
   // Создаем опции для выпадающих списков
   const currencyOptions = currencies.map((currency) => ({
     value: currency.code,
-    label: `${currency.name} (${currency.symbol})`,
+    label: `${currency.name}`,
   }));
 
   // Находим текущие валюты для форматирования

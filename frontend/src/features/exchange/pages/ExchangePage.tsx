@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/shared/ui/Card';
 import { PageTitle } from '@/shared/ui/PageTitle';
-import { Button } from '@/shared/ui/Button';
 import { Input } from '@/shared/ui/Input';
 import { useNotification } from '@/lib/hooks/useNotification';
 import { mockCurrencies, calculateToAmount, calculateFromAmount } from '@/mocks/exchange-data';
 import { logger } from '@/lib/utils/logger';
+import { ArrowRightIcon, ArrowLeftIcon, PlusIcon, XMarkIcon, ShoppingCartIcon, ArrowsRightLeftIcon } from '@heroicons/react/24/outline';
 
 export function ExchangePage() {
   const { success, error } = useNotification();
@@ -15,6 +15,9 @@ export function ExchangePage() {
   const [pairs, setPairs] = useState([
     { fromCurrency: '', toCurrency: '', fromAmount: 0, toAmount: 0 }
   ]);
+  
+  // Флаг для предотвращения зацикливания при обновлении
+  const isUpdating = useRef(false);
   
   // Загружаем данные из localStorage при монтировании компонента
   useEffect(() => {
@@ -73,7 +76,24 @@ export function ExchangePage() {
 
   // Добавление новой валютной пары
   const handleAddPair = () => {
-    setPairs([...pairs, { fromCurrency: '', toCurrency: '', fromAmount: 0, toAmount: 0 }]);
+    // Создаем новую пару со значениями по умолчанию USDT -> ARS
+    const defaultFromCurrency = 'USDT';
+    const defaultToCurrency = 'ARS';
+    const defaultFromAmount = 100;
+    
+    // Рассчитываем сумму получения на основе курса обмена
+    const calculatedToAmount = calculateToAmount(defaultFromCurrency, defaultToCurrency, defaultFromAmount);
+    
+    // Добавляем новую пару с предустановленными значениями
+    setPairs([
+      ...pairs, 
+      { 
+        fromCurrency: defaultFromCurrency, 
+        toCurrency: defaultToCurrency, 
+        fromAmount: defaultFromAmount, 
+        toAmount: calculatedToAmount || 0 
+      }
+    ]);
   };
 
   // Удаление валютной пары
@@ -85,6 +105,11 @@ export function ExchangePage() {
 
   // Обновление значения пары
   const handlePairChange = (index: number, field: string, value: string | number) => {
+    // Если уже идет обновление, выходим, чтобы избежать зацикливания
+    if (isUpdating.current) return;
+    
+    isUpdating.current = true; // Устанавливаем флаг обновления
+    
     const newPairs = [...pairs];
     const pair = { ...newPairs[index], [field]: value };
     
@@ -109,6 +134,11 @@ export function ExchangePage() {
     
     newPairs[index] = pair;
     setPairs(newPairs);
+    
+    // Сбрасываем флаг в следующем цикле событий
+    setTimeout(() => {
+      isUpdating.current = false;
+    }, 0);
   };
 
   // Обновление контактной информации
@@ -187,10 +217,10 @@ export function ExchangePage() {
               // Шаг 1: Выбор валют и сумм
               <div className="space-y-6">
                 {pairs.map((pair, index) => (
-                  <div key={index} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <div key={index} className="p-4 bg-gray-50 rounded-lg border border-gray-100 relative">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center relative">
+                      <div className="md:pr-8">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
                           Отдаете*
                         </label>
                         <div className="flex">
@@ -202,7 +232,7 @@ export function ExchangePage() {
                             <option value="">Выберите...</option>
                             {mockCurrencies.map((currency) => (
                               <option key={currency.code} value={currency.code}>
-                                {currency.code} ({currency.symbol})
+                                {currency.code}
                               </option>
                             ))}
                           </select>
@@ -216,8 +246,14 @@ export function ExchangePage() {
                         </div>
                       </div>
 
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                      <div className="hidden md:block absolute left-1/2 -translate-x-1/2" style={{ top: '2.5rem', marginLeft: '-15px' }}>
+                        <div className="bg-white p-1.5 rounded-full shadow-sm border border-gray-200">
+                          <ArrowsRightLeftIcon className="h-4 w-4 text-gray-500" />
+                        </div>
+                      </div>
+
+                      <div className="md:pl-8">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
                           Получаете*
                         </label>
                         <div className="flex">
@@ -229,7 +265,7 @@ export function ExchangePage() {
                             <option value="">Выберите...</option>
                             {mockCurrencies.map((currency) => (
                               <option key={currency.code} value={currency.code}>
-                                {currency.code} ({currency.symbol})
+                                {currency.code}
                               </option>
                             ))}
                           </select>
@@ -245,32 +281,97 @@ export function ExchangePage() {
                     </div>
 
                     {pairs.length > 1 && (
-                      <div className="flex justify-end">
-                        <Button
-                          variant="secondary"
-                          onClick={() => handleRemovePair(index)}
-                          className="text-red-500"
-                        >
-                          Удалить
-                        </Button>
-                      </div>
+                      <button
+                        onClick={() => handleRemovePair(index)}
+                        className="absolute top-2 right-2 inline-flex items-center gap-1 px-2 py-1 rounded-md text-red-500 bg-red-50 hover:bg-red-100 transition-colors"
+                        aria-label="Удалить пару обмена"
+                      >
+                        <XMarkIcon className="h-4 w-4" />
+                        <span className="text-xs font-medium">Удалить</span>
+                      </button>
                     )}
                   </div>
                 ))}
 
-                <div className="flex justify-center">
-                  <Button variant="secondary" onClick={handleAddPair} className="text-blue-500">
-                    + Добавить обмен
-                  </Button>
+                <div className="flex justify-center mt-8">
+                  <button 
+                    onClick={handleAddPair} 
+                    className="inline-flex items-center gap-1 px-5 py-2.5 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors font-medium"
+                  >
+                    <PlusIcon className="h-5 w-5" />
+                    <span>Добавить обмен</span>
+                  </button>
                 </div>
 
-                <div className="flex justify-between">
-                  <Button variant="secondary" onClick={handleCancel} className="mr-2">
-                    Отмена
-                  </Button>
-                  <Button variant="primary" onClick={handleContinue}>
-                    Продолжить
-                  </Button>
+                {pairs.length > 1 && (
+                  <div className="mt-8 bg-white p-5 rounded-lg shadow border border-gray-200">
+                    <h3 className="text-lg font-semibold mb-4">Итого по всем обменам:</h3>
+                    <div className="grid grid-cols-2 gap-6">
+                      <div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Вы отдаете:</span>
+                          <div className="space-y-1">
+                            {Object.entries(
+                              pairs.reduce((acc, pair) => {
+                                if (!pair.fromCurrency || pair.fromAmount <= 0) return acc;
+                                
+                                const currency = pair.fromCurrency;
+                                if (!acc[currency]) {
+                                  acc[currency] = 0;
+                                }
+                                acc[currency] += pair.fromAmount;
+                                return acc;
+                              }, {} as Record<string, number>)
+                            ).map(([currency, amount]) => (
+                              <div key={currency} className="text-right font-medium">
+                                {amount.toFixed(2)} {currency}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between">
+                          <span className="text-gray-600">Вы получаете:</span>
+                          <div className="space-y-1">
+                            {Object.entries(
+                              pairs.reduce((acc, pair) => {
+                                if (!pair.toCurrency || pair.toAmount <= 0) return acc;
+                                
+                                const currency = pair.toCurrency;
+                                if (!acc[currency]) {
+                                  acc[currency] = 0;
+                                }
+                                acc[currency] += pair.toAmount;
+                                return acc;
+                              }, {} as Record<string, number>)
+                            ).map(([currency, amount]) => (
+                              <div key={currency} className="text-right font-medium">
+                                {amount.toFixed(2)} {currency}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-between mt-10 pt-4 border-t border-gray-200">
+                  <button 
+                    onClick={handleCancel} 
+                    className="inline-flex items-center gap-1 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <span>Отмена</span>
+                  </button>
+                  <button 
+                    onClick={handleContinue}
+                    className="inline-flex items-center gap-1 px-6 py-2 rounded-lg bg-icmop-primary hover:bg-icmop-dark text-white transition-colors whitespace-nowrap font-medium"
+                  >
+                    <span>Продолжить</span>
+                    <ArrowRightIcon className="h-4 w-4 flex-shrink-0" />
+                  </button>
                 </div>
               </div>
             ) : (
@@ -368,12 +469,20 @@ export function ExchangePage() {
                 </div>
 
                 <div className="flex justify-between pt-4">
-                  <Button variant="secondary" onClick={handleBack} className="mr-2">
-                    Назад
-                  </Button>
-                  <Button variant="primary" onClick={handleCreateOrder}>
-                    Создать заказ
-                  </Button>
+                  <button 
+                    onClick={handleBack} 
+                    className="inline-flex items-center gap-1 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors"
+                  >
+                    <ArrowLeftIcon className="h-4 w-4" />
+                    <span>Назад</span>
+                  </button>
+                  <button 
+                    onClick={handleCreateOrder}
+                    className="inline-flex items-center gap-1 px-6 py-2 rounded-lg bg-icmop-primary hover:bg-icmop-dark text-white transition-colors whitespace-nowrap font-medium"
+                  >
+                    <ShoppingCartIcon className="h-4 w-4" />
+                    <span>Создать заказ</span>
+                  </button>
                 </div>
               </div>
             )}
