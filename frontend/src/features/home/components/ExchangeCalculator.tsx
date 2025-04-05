@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Input } from '@/shared/ui/Input';
-import { Button } from '@/shared/ui/Button';
 import { Currency } from '@/types';
 import { mockCurrencies, calculateToAmount, calculateFromAmount, mockExchangeRates } from '@/mocks/exchange-data';
+import { ArrowRightIcon, CurrencyDollarIcon, BanknotesIcon } from '@heroicons/react/24/outline';
 
 interface ExchangeCalculatorProps {
   onCreateOrder?: () => void;
@@ -13,8 +13,8 @@ interface ExchangeCalculatorProps {
 
 // Быстрые пары для обмена
 const QUICK_PAIRS = [
-  { from: 'USDT', to: 'ARS', name: 'USDT → ARS' },
-  { from: 'USDT', to: 'USD', name: 'USDT → USD cash' },
+  { from: 'USDT', to: 'ARS', name: 'USDT → ARS', icon: <BanknotesIcon className="w-4 h-4 mr-2" /> },
+  { from: 'USDT', to: 'USD', name: 'USDT → USD cash', icon: <CurrencyDollarIcon className="w-4 h-4 mr-2" /> },
 ];
 
 export const ExchangeCalculator = ({
@@ -30,6 +30,8 @@ export const ExchangeCalculator = ({
     const calculated = calculateToAmount('USDT', 'ARS', 100);
     return calculated !== null ? calculated : 0;
   });
+  // Флаг для предотвращения зацикливания
+  const isUpdating = useRef(false);
 
   // Обработчик выбора быстрой пары
   const handleQuickPairSelect = (from: string, to: string) => {
@@ -39,16 +41,32 @@ export const ExchangeCalculator = ({
 
   // Расчет суммы получения при изменении суммы отправления
   useEffect(() => {
+    if (isUpdating.current) return; // Выходим, если уже происходит обновление
+    
     if (fromCurrency && toCurrency && fromAmount > 0) {
+      isUpdating.current = true; // Устанавливаем флаг обновления
       const calculated = calculateToAmount(fromCurrency, toCurrency, fromAmount);
       if (calculated !== null) {
         setToAmount(calculated);
       }
+      // Сбрасываем флаг в следующем цикле событий
+      setTimeout(() => {
+        isUpdating.current = false;
+      }, 0);
     }
   }, [fromCurrency, toCurrency, fromAmount]);
 
+  // Обработчик изменения суммы отправления
+  const handleFromAmountChange = (value: number) => {
+    if (isUpdating.current) return;
+    setFromAmount(value);
+  };
+
   // Расчет суммы отправления при изменении суммы получения
   const handleToAmountChange = (value: number) => {
+    if (isUpdating.current) return; // Выходим, если уже происходит обновление
+    
+    isUpdating.current = true; // Устанавливаем флаг обновления
     setToAmount(value);
     if (fromCurrency && toCurrency && value > 0) {
       const calculated = calculateFromAmount(fromCurrency, toCurrency, value);
@@ -56,6 +74,10 @@ export const ExchangeCalculator = ({
         setFromAmount(calculated);
       }
     }
+    // Сбрасываем флаг в следующем цикле событий
+    setTimeout(() => {
+      isUpdating.current = false;
+    }, 0);
   };
 
   // Переход к оформлению заказа
@@ -96,12 +118,13 @@ export const ExchangeCalculator = ({
               <button
                 key={index}
                 onClick={() => handleQuickPairSelect(pair.from, pair.to)}
-                className={`px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-200
+                className={`flex items-center px-6 py-3 rounded-lg text-sm font-semibold transition-all duration-200
                   ${fromCurrency === pair.from && toCurrency === pair.to
-                    ? 'bg-blue-500 text-white shadow-md'
+                    ? 'bg-icmop-primary text-white shadow-md'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow'
                   }`}
               >
+                {pair.icon}
                 {pair.name}
               </button>
             ))}
@@ -123,14 +146,14 @@ export const ExchangeCalculator = ({
               <option value="">Валюта</option>
               {currencies.map((currency) => (
                 <option key={currency.code} value={currency.code}>
-                  {currency.code} ({currency.symbol})
+                  {currency.code}
                 </option>
               ))}
             </select>
             <Input
               type="number"
               value={fromAmount || ''}
-              onChange={(e) => setFromAmount(Number(e.target.value))}
+              onChange={(e) => handleFromAmountChange(Number(e.target.value))}
               placeholder="0.00"
               min="0"
               step="0.01"
@@ -152,7 +175,7 @@ export const ExchangeCalculator = ({
               <option value="">Валюта</option>
               {currencies.map((currency) => (
                 <option key={currency.code} value={currency.code}>
-                  {currency.code} ({currency.symbol})
+                  {currency.code}
                 </option>
               ))}
             </select>
@@ -212,14 +235,31 @@ export const ExchangeCalculator = ({
 
       {!simplified && (
         <div className="flex justify-end mt-8">
-          <Button 
-            variant="primary"
+          <button 
             onClick={handleCreateOrder}
             disabled={!fromCurrency || !toCurrency || fromAmount <= 0}
-            className="w-full sm:w-auto px-8 py-3 text-lg font-semibold rounded-lg transition-all duration-200 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+            style={{ 
+              backgroundColor: '#00A651',
+              color: 'white',
+              padding: '0.75rem 2rem',
+              borderRadius: '0.5rem',
+              fontWeight: '600',
+              fontSize: '1.125rem',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.5rem',
+              whiteSpace: 'nowrap',
+              width: '100%',
+              transition: 'all 0.2s',
+              cursor: fromCurrency && toCurrency && fromAmount > 0 ? 'pointer' : 'not-allowed',
+              opacity: fromCurrency && toCurrency && fromAmount > 0 ? '1' : '0.5'
+            }}
+            className="sm:w-auto hover:shadow-lg"
           >
-            Заказать обмен
-          </Button>
+            <span>Заказать обмен</span>
+            <ArrowRightIcon className="h-5 w-5 flex-shrink-0" />
+          </button>
         </div>
       )}
     </div>
